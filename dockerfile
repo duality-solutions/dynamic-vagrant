@@ -1,26 +1,23 @@
 FROM ubuntu:bionic as build-env
 WORKDIR /dynamic
 RUN apt-get -qq update
-RUN apt-get install -y build-essential libtool autotools-dev autoconf pkg-config libssl-dev libboost-all-dev libcrypto++-dev libevent-dev software-properties-common git curl
-RUN apt-add-repository -y ppa:bitcoin/bitcoin
-RUN apt-get update -y 
-RUN apt-get install -y libdb4.8-dev libdb4.8++-dev
-COPY ./apps/dynamic/depends /dynamic/build/apps/dynamic/depends
-WORKDIR /dynamic/build/apps/dynamic/depends
-RUN make NO_QT=1 HOST=x86_64-unknown-linux-gnu
-COPY ./apps/dynamic /dynamic/build/apps/dynamic
-WORKDIR /dynamic/build/apps/dynamic
-ENV PATH=/dynamic/build/apps/dynamic/depends/x86_64-unknown-linux-gnu/native/bin:${PATH}
-ENV INSTALLPATH=/dynamic/build/apps/dynamic/installed/x86_64-unknown-linux-gnu
-RUN mkdir -p ${INSTALLPATH}/bin
-RUN mkdir -p ${INSTALLPATH}/include
-RUN mkdir -p ${INSTALLPATH}/lib
-RUN ./autogen.sh 
-RUN ./configure --without-gui --disable-tests --disable-bench --prefix=/dynamic/build/apps/dynamic/depends/x86_64-unknown-linux-gnu --bindir=${INSTALLPATH}/bin --includedir=${INSTALLPATH}/include --libdir=${INSTALLPATH}/lib --disable-ccache --disable-maintainer-mode --disable-dependency-tracking --disable-shared --enable-glibc-back-compat --enable-reduce-exports LDFLAGS=-static-libstdc++
-RUN make ${MAKEOPTS}
+RUN apt-get install -y build-essential libtool autotools-dev autoconf pkg-config libssl-dev libboost-all-dev
+RUN apt-get install -y libcrypto++-dev libevent-dev software-properties-common git curl wget
+RUN wget 'http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz'
+RUN tar -xzvf db-4.8.30.NC.tar.gz
+RUN cd db-4.8.30.NC/build_unix
+RUN db-4.8.30.NC/dist/configure --prefix=/usr/local --enable-cxx
+RUN make -j$(nproc)
+RUN make install
+RUN cd ..//..
+RUN git clone https://github.com/duality-solutions/dynamic.git
+RUN ./dynamic/autogen.sh 
+RUN ./dynamic/configure --without-gui --disable-tests --disable-bench
+RUN cd dynamic && git submodule update --init --recursive
+RUN make -j$(nproc)
 RUN make install-strip
-RUN strip /dynamic/build/apps/dynamic/installed/x86_64-unknown-linux-gnu/bin/dynamicd
-RUN strip /dynamic/build/apps/dynamic/installed/x86_64-unknown-linux-gnu/bin/dynamic-cli 
+RUN strip /dynamic/src/dynamicd
+RUN strip /dynamic/src/dynamic-cli 
 FROM ubuntu:bionic
 WORKDIR /dynamic
 COPY --from=build-env /dynamic/build/apps/dynamic/installed/x86_64-unknown-linux-gnu/bin/dynamicd /dynamic/build/apps/dynamic/installed/x86_64-unknown-linux-gnu/bin/dynamic-cli ./dist/
